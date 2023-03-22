@@ -80,7 +80,7 @@
     "rimraf": "^3.0.2",
     "semver": "^7.3.5",
     "solhint": "^3.3.6",
-    "solidity-ast": "^0.4.25",
+    "solidity-ast": "^0.4.46",
     "solidity-coverage": "^0.7.11",
     "solidity-docgen": "^0.5.3",
     "web3": "^1.3.0",
