@@ -83,7 +83,7 @@
     "solidity-ast": "^0.4.25",
     "solidity-coverage": "^0.8.2",
     "solidity-docgen": "^0.5.3",
-    "web3": "^1.7.5",
-    "yargs": "^17.7.1"
+    "web3": "^1.8.2",
+    "yargs": "^16.2.0"
   }
 }
