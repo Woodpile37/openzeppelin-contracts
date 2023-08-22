@@ -68,7 +68,7 @@
     "ethereumjs-wallet": "^1.0.1",
     "glob": "^10.3.3",
     "graphlib": "^2.1.8",
-    "hardhat": "^2.17.0",
+    "hardhat": "^2.17.1",
     "hardhat-gas-reporter": "^1.0.9",
     "keccak256": "^1.0.2",
     "lodash.startcase": "^4.4.0",
