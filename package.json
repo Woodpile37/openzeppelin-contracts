@@ -55,7 +55,7 @@
     "@openzeppelin/docs-utils": "^0.1.0",
     "@openzeppelin/test-helpers": "^0.5.13",
     "@truffle/abi-utils": "^1.0.1",
-    "chai": "^4.2.0",
+    "chai": "^4.3.7",
     "eslint": "^8.46.0",
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-import": "^2.20.0",
