@@ -444,7 +444,7 @@ contract AccessManager is Context, Multicall, IAccessManager {
 
         uint48 minWhen = Time.timestamp() + setback;
 
-        // If call with delay is not authorized, or if requested timing is too soon, revert
+        // if call with delay is not authorized, or if requested timing is too soon
         if (setback == 0 || (when > 0 && when < minWhen)) {
             revert AccessManagerUnauthorizedCall(caller, target, _checkSelector(data));
         }
@@ -489,7 +489,7 @@ contract AccessManager is Context, Multicall, IAccessManager {
         // Fetch restrictions that apply to the caller on the targeted function
         (bool immediate, uint32 setback) = _canCallExtended(caller, target, data);
 
-        // If call is not authorized, revert
+        // If caller is not authorised, revert
         if (!immediate && setback == 0) {
             revert AccessManagerUnauthorizedCall(caller, target, _checkSelector(data));
         }
