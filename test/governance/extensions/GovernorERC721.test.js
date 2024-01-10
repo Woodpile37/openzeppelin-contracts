@@ -1,118 +1,131 @@
-const { expectEvent } = require('@openzeppelin/test-helpers');
-const { BN } = require('bn.js');
-const Enums = require('../../helpers/enums');
+const { ethers } = require('hardhat');
+const { expect } = require('chai');
+const { loadFixture } = require('@nomicfoundation/hardhat-network-helpers');
 
-const {
-  runGovernorWorkflow,
-} = require('./../GovernorWorkflow.behavior');
+const { GovernorHelper } = require('../../helpers/governance');
+const { bigint: Enums } = require('../../helpers/enums');
 
-const Token = artifacts.require('ERC721VotesMock');
-const Governor = artifacts.require('GovernorVoteMocks');
-const CallReceiver = artifacts.require('CallReceiverMock');
+const TOKENS = [
+  { Token: '$ERC721Votes', mode: 'blocknumber' },
+  { Token: '$ERC721VotesTimestampMock', mode: 'timestamp' },
+];
 
-contract('GovernorERC721Mock', function (accounts) {
-  const [ owner, voter1, voter2, voter3, voter4 ] = accounts;
+const name = 'OZ-Governor';
+const version = '1';
+const tokenName = 'MockNFToken';
+const tokenSymbol = 'MTKN';
+const NFT0 = 0n;
+const NFT1 = 1n;
+const NFT2 = 2n;
+const NFT3 = 3n;
+const NFT4 = 4n;
+const votingDelay = 4n;
+const votingPeriod = 16n;
+const value = ethers.parseEther('1');
 
-  const name = 'OZ-Governor';
-  const tokenName = 'MockNFToken';
-  const tokenSymbol = 'MTKN';
-  const NFT0 = web3.utils.toWei('100');
-  const NFT1 = web3.utils.toWei('10');
-  const NFT2 = web3.utils.toWei('20');
-  const NFT3 = web3.utils.toWei('30');
-  const NFT4 = web3.utils.toWei('40');
+describe('GovernorERC721', function () {
+  for (const { Token, mode } of TOKENS) {
+    const fixture = async () => {
+      const [owner, voter1, voter2, voter3, voter4] = await ethers.getSigners();
+      const receiver = await ethers.deployContract('CallReceiverMock');
 
-  // Must be the same as in contract
-  const ProposalState = {
-    Pending: new BN('0'),
-    Active: new BN('1'),
-    Canceled: new BN('2'),
-    Defeated: new BN('3'),
-    Succeeded: new BN('4'),
-    Queued: new BN('5'),
-    Expired: new BN('6'),
-    Executed: new BN('7'),
-  };
+      const token = await ethers.deployContract(Token, [tokenName, tokenSymbol, version]);
+      const mock = await ethers.deployContract('$GovernorMock', [
+        name, // name
+        votingDelay, // initialVotingDelay
+        votingPeriod, // initialVotingPeriod
+        0n, // initialProposalThreshold
+        token, // tokenAddress
+        10n, // quorumNumeratorValue
+      ]);
 
-  beforeEach(async function () {
-    this.owner = owner;
-    this.token = await Token.new(tokenName, tokenSymbol);
-    this.mock = await Governor.new(name, this.token.address);
-    this.receiver = await CallReceiver.new();
-    await this.token.mint(owner, NFT0);
-    await this.token.mint(owner, NFT1);
-    await this.token.mint(owner, NFT2);
-    await this.token.mint(owner, NFT3);
-    await this.token.mint(owner, NFT4);
+      await owner.sendTransaction({ to: mock, value });
+      await Promise.all([NFT0, NFT1, NFT2, NFT3, NFT4].map(tokenId => token.$_mint(owner, tokenId)));
 
-    await this.token.delegate(voter1, { from: voter1 });
-    await this.token.delegate(voter2, { from: voter2 });
-    await this.token.delegate(voter3, { from: voter3 });
-    await this.token.delegate(voter4, { from: voter4 });
-  });
+      const helper = new GovernorHelper(mock, mode);
+      await helper.connect(owner).delegate({ token, to: voter1, tokenId: NFT0 });
+      await helper.connect(owner).delegate({ token, to: voter2, tokenId: NFT1 });
+      await helper.connect(owner).delegate({ token, to: voter2, tokenId: NFT2 });
+      await helper.connect(owner).delegate({ token, to: voter3, tokenId: NFT3 });
+      await helper.connect(owner).delegate({ token, to: voter4, tokenId: NFT4 });
 
-  it('deployment check', async function () {
-    expect(await this.mock.name()).to.be.equal(name);
-    expect(await this.mock.token()).to.be.equal(this.token.address);
-    expect(await this.mock.votingDelay()).to.be.bignumber.equal('4');
-    expect(await this.mock.votingPeriod()).to.be.bignumber.equal('16');
-    expect(await this.mock.quorum(0)).to.be.bignumber.equal('0');
-  });
-
-  describe('voting with ERC721 token', function () {
-    beforeEach(async function () {
-      this.settings = {
-        proposal: [
-          [ this.receiver.address ],
-          [ web3.utils.toWei('0') ],
-          [ this.receiver.contract.methods.mockFunction().encodeABI() ],
-          '<proposal description>',
-        ],
-        tokenHolder: owner,
-        voters: [
-          { voter: voter1, nfts: [NFT0], support: Enums.VoteType.For },
-          { voter: voter2, nfts: [NFT1, NFT2], support: Enums.VoteType.For },
-          { voter: voter3, nfts: [NFT3], support: Enums.VoteType.Against },
-          { voter: voter4, nfts: [NFT4], support: Enums.VoteType.Abstain },
-        ],
+      return {
+        owner,
+        voter1,
+        voter2,
+        voter3,
+        voter4,
+        receiver,
+        token,
+        mock,
+        helper,
       };
-    });
+    };
 
-    afterEach(async function () {
-      expect(await this.mock.hasVoted(this.id, owner)).to.be.equal(false);
-
-      for (const vote of this.receipts.castVote.filter(Boolean)) {
-        const { voter } = vote.logs.find(Boolean).args;
-
-        expect(await this.mock.hasVoted(this.id, voter)).to.be.equal(true);
-
-        expectEvent(
-          vote,
-          'VoteCast',
-          this.settings.voters.find(({ address }) => address === voter),
+    describe(`using ${Token}`, function () {
+      beforeEach(async function () {
+        Object.assign(this, await loadFixture(fixture));
+        // initiate fresh proposal
+        this.proposal = this.helper.setProposal(
+          [
+            {
+              target: this.receiver.target,
+              data: this.receiver.interface.encodeFunctionData('mockFunction'),
+              value,
+            },
+          ],
+          '<proposal description>',
         );
-
-        if (voter === voter2) {
-          expect(await this.token.getVotes(voter, vote.blockNumber)).to.be.bignumber.equal('2');
-        } else {
-          expect(await this.token.getVotes(voter, vote.blockNumber)).to.be.bignumber.equal('1');
-        }
-      }
-
-      await this.mock.proposalVotes(this.id).then(result => {
-        for (const [key, value] of Object.entries(Enums.VoteType)) {
-          expect(result[`${key.toLowerCase()}Votes`]).to.be.bignumber.equal(
-            Object.values(this.settings.voters).filter(({ support }) => support === value).reduce(
-              (acc, { nfts }) => acc.add(new BN(nfts.length)),
-              new BN('0'),
-            ),
-          );
-        }
       });
 
-      expect(await this.mock.state(this.id)).to.be.bignumber.equal(ProposalState.Executed);
-    });
+      it('deployment check', async function () {
+        expect(await this.mock.name()).to.equal(name);
+        expect(await this.mock.token()).to.equal(this.token.target);
+        expect(await this.mock.votingDelay()).to.equal(votingDelay);
+        expect(await this.mock.votingPeriod()).to.equal(votingPeriod);
+        expect(await this.mock.quorum(0n)).to.equal(0n);
 
-    runGovernorWorkflow();
-  });
+        expect(await this.token.getVotes(this.voter1)).to.equal(1n); // NFT0
+        expect(await this.token.getVotes(this.voter2)).to.equal(2n); // NFT1 & NFT2
+        expect(await this.token.getVotes(this.voter3)).to.equal(1n); // NFT3
+        expect(await this.token.getVotes(this.voter4)).to.equal(1n); // NFT4
+      });
+
+      it('voting with ERC721 token', async function () {
+        await this.helper.propose();
+        await this.helper.waitForSnapshot();
+
+        await expect(this.helper.connect(this.voter1).vote({ support: Enums.VoteType.For }))
+          .to.emit(this.mock, 'VoteCast')
+          .withArgs(this.voter1.address, this.proposal.id, Enums.VoteType.For, 1n, '');
+
+        await expect(this.helper.connect(this.voter2).vote({ support: Enums.VoteType.For }))
+          .to.emit(this.mock, 'VoteCast')
+          .withArgs(this.voter2.address, this.proposal.id, Enums.VoteType.For, 2n, '');
+
+        await expect(this.helper.connect(this.voter3).vote({ support: Enums.VoteType.Against }))
+          .to.emit(this.mock, 'VoteCast')
+          .withArgs(this.voter3.address, this.proposal.id, Enums.VoteType.Against, 1n, '');
+
+        await expect(this.helper.connect(this.voter4).vote({ support: Enums.VoteType.Abstain }))
+          .to.emit(this.mock, 'VoteCast')
+          .withArgs(this.voter4.address, this.proposal.id, Enums.VoteType.Abstain, 1n, '');
+
+        await this.helper.waitForDeadline();
+        await this.helper.execute();
+
+        expect(await this.mock.hasVoted(this.proposal.id, this.owner)).to.be.false;
+        expect(await this.mock.hasVoted(this.proposal.id, this.voter1)).to.be.true;
+        expect(await this.mock.hasVoted(this.proposal.id, this.voter2)).to.be.true;
+        expect(await this.mock.hasVoted(this.proposal.id, this.voter3)).to.be.true;
+        expect(await this.mock.hasVoted(this.proposal.id, this.voter4)).to.be.true;
+
+        expect(await this.mock.proposalVotes(this.proposal.id)).to.deep.equal([
+          1n, // againstVotes
+          3n, // forVotes
+          1n, // abstainVotes
+        ]);
+      });
+    });
+  }
 });
