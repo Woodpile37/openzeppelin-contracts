@@ -1,6 +1,11 @@
 # Changelog
 
 
+## 5.1.0 (2024-01-10)
+
+- `Math`: Optimized gas cost of `ceilDiv` by using `unchecked`. ([#4553](https://github.com/OpenZeppelin/openzeppelin-contracts/pull/4553))
+- `TransparentUpgradeableProxy`: Make internal `_proxyAdmin()` getter have `view` visibility. ([#4688](https://github.com/OpenZeppelin/openzeppelin-contracts/pull/4688))
+
 ## 5.0.1 (2023-12-07)
 
 - `ERC2771Context` and `Context`: Introduce a `_contextPrefixLength()` getter, used to trim extra information appended to `msg.data`.
